@@ -42,9 +42,9 @@ impl Default for Theme {
     fn default() -> Self {
         Self {
             // Selection state colors
-            selected_fg: Color::White,    // set to white for better contrast with cyan background
-            selected_bg: Color::Cyan,     // use cyan background for selection to ensure visibility of both file and directory names
-            unselected_fg: Color::Reset,  // Inherit terminal fg for unspecified items
+            selected_fg: Color::Rgb(255, 255, 255), // Use true RGB white to avoid terminal theme hijacking 'Color::White' to black
+            selected_bg: Color::Cyan,               // Restore the cyan selection bar
+            unselected_fg: Color::Reset,            // Inherit terminal fg for unspecified items
             unselected_bg: Color::Reset,  // Inherit terminal bg normally
 
             list_highlight_symbol: "",
