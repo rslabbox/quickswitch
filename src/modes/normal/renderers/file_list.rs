@@ -48,7 +48,6 @@ impl Renderer for FileListRenderer {
                 ratatui::style::Style::default()
                     .fg(state.theme.selected_fg)
                     .bg(state.theme.selected_bg)
-                    .add_modifier(ratatui::style::Modifier::BOLD)
             )
             .highlight_symbol(state.theme.list_highlight_symbol);
 
@@ -65,9 +64,9 @@ fn create_file_list_item<'a>(file: &'a FileItem, search_input: &'a str, theme: &
         theme.file_style
     };
 
-    // Apply explicit fg/bg colors to override internal span colors
+    // For selected items, strip explicit colors so List::highlight_style takes full effect
     if is_selected {
-        style = ratatui::style::Style::default().fg(theme.selected_fg).bg(theme.selected_bg);
+        style = ratatui::style::Style::default();
     } else {
         style = style.bg(theme.unselected_bg);
     }
@@ -93,7 +92,7 @@ fn create_display_item_list_item<'a>(item: &'a DisplayItem, search_input: &'a st
             let mut style = theme.dir_style;
             
             if is_selected {
-                style = ratatui::style::Style::default().fg(theme.selected_fg).bg(theme.selected_bg);
+                style = ratatui::style::Style::default();
             } else {
                 style = style.bg(theme.unselected_bg);
             }

@@ -56,7 +56,6 @@ impl Renderer for HistoryListRenderer {
                 ratatui::style::Style::default()
                     .fg(state.theme.selected_fg)
                     .bg(state.theme.selected_bg)
-                    .add_modifier(ratatui::style::Modifier::BOLD)
             )
             .highlight_symbol(state.theme.list_highlight_symbol);
 
@@ -81,9 +80,9 @@ fn create_history_list_item<'a>(item: &'a DisplayItem, search_input: &'a str, th
             let mut path_style = theme.history_path_style;
             
             if is_selected {
-                dir_style = ratatui::style::Style::default().fg(theme.selected_fg).bg(theme.selected_bg);
-                freq_style = ratatui::style::Style::default().fg(theme.selected_fg).bg(theme.selected_bg);
-                path_style = ratatui::style::Style::default().fg(theme.selected_fg).bg(theme.selected_bg);
+                dir_style = ratatui::style::Style::default();
+                freq_style = ratatui::style::Style::default();
+                path_style = ratatui::style::Style::default();
             } else {
                 dir_style = dir_style.bg(theme.unselected_bg);
                 freq_style = freq_style.bg(theme.unselected_bg);
