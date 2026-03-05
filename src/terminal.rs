@@ -17,7 +17,7 @@ use crate::{App, core::events, utils::AppMode};
 pub async fn run_interactive_mode(mode: AppMode) -> Result<()> {
     let mut terminal = setup_terminal()?;
     let mut app = App::new(mode)?;
-    let result = run_app_loop(&mut terminal, &mut app).await;
+    let result = run_app_loop(&mut terminal, &mut app);
     cleanup_terminal(&mut terminal)?;
     result
 }
@@ -42,7 +42,7 @@ pub fn cleanup_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -
     Ok(())
 }
 
-pub async fn run_app_loop<W>(
+pub fn run_app_loop<W>(
     terminal: &mut Terminal<CrosstermBackend<W>>,
     app: &mut App,
 ) -> Result<()>
@@ -58,22 +58,25 @@ where
             app.state.update_layout(terminal_area);
         }
 
+        // Poll preview updates
+        while let Ok((title, content, file_item)) = app.state.preview_rx.try_recv() {
+            app.state.preview.update_preview(title, content, file_item);
+        }
+
         terminal.draw(|f| render_ui(f, app))?;
 
         if event::poll(std::time::Duration::from_millis(100))? {
             match event::read()? {
-                Event::Key(key) => {
+                Event::Key(key)
                     if key.kind == KeyEventKind::Press
-                        && !events::handle_key_event(app, key).await?
-                    {
+                        && !events::handle_key_event(app, key)?
+                    => {
                         break;
                     }
-                }
-                Event::Mouse(mouse) => {
-                    if !events::handle_mouse_event(app, mouse).await? {
+                Event::Mouse(mouse)
+                    if !events::handle_mouse_event(app, mouse)? => {
                         break;
                     }
-                }
                 _ => {}
             }
         }

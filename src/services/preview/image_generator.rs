@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use ratatui::{
-    style::{Color, Style},
-    text::{Line, Span},
-};
+use ratatui::text::{Line, Span};
 use tokio::sync::Mutex;
 
 use super::PreviewContent;
@@ -19,7 +16,7 @@ impl PreviewGeneratorTrait for ImagePreviewGenerator {
         file.is_image()
     }
 
-    async fn generate_preview(&self, file: &FileItem) -> (String, PreviewContent) {
+    async fn generate_preview(&self, file: &FileItem, theme: &crate::theme::Theme) -> (String, PreviewContent) {
         let title = format!("🖼️ {}", file.name);
 
         // Try to load the image
@@ -34,12 +31,12 @@ impl PreviewGeneratorTrait for ImagePreviewGenerator {
                 let content = vec![
                     Line::from(vec![Span::styled(
                         "Image Load Error".to_string(),
-                        Style::default().fg(Color::Red),
+                        theme.preview_error_style,
                     )]),
                     Line::from(vec![Span::raw("".to_string())]),
                     Line::from(vec![Span::styled(
                         format!("Failed to load image: {e}"),
-                        Style::default().fg(Color::Gray),
+                        theme.preview_info_style,
                     )]),
                 ];
                 (title, PreviewContent::text(content))

@@ -22,8 +22,8 @@ impl DataProvider for FileListDataProvider {
     }
 
     fn navigate_into_directory(&self, state: &mut AppState) -> Result<Option<ModeAction>> {
-        if let Some(file) = state.get_selected_item() {
-            if file.is_directory() {
+        if let Some(file) = state.get_selected_item()
+            && file.is_directory() {
                 // Save current position before changing directory
                 self.save_position(state);
 
@@ -35,7 +35,6 @@ impl DataProvider for FileListDataProvider {
 
                 return Ok(None); // Stay in current mode
             }
-        }
         Ok(None)
     }
 
@@ -127,7 +126,7 @@ impl DataProvider for FileListDataProvider {
         self.restore_position(state);
 
         // Clear preview
-        PreviewManager::clear_preview();
+        PreviewManager::clear_preview(state);
 
         Ok(())
     }

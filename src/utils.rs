@@ -2,7 +2,6 @@ use anyhow::{Ok, Result};
 use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 use ratatui::{
-    style::{Color, Style},
     text::Span,
 };
 use serde::{Deserialize, Serialize};
@@ -187,9 +186,14 @@ impl FileItem {
     }
 }
 
-pub fn highlight_search_term<'a>(text: &'a str, search: &'a str) -> Vec<Span<'a>> {
+pub fn highlight_search_term<'a>(
+    text: &'a str, 
+    search: &'a str, 
+    theme: &crate::theme::Theme,
+    base_style: ratatui::style::Style,
+) -> Vec<Span<'a>> {
     if search.is_empty() {
-        return vec![Span::raw(text)];
+        return vec![Span::styled(text, base_style)];
     }
 
     let search_lower = search.to_lowercase();
@@ -202,19 +206,19 @@ pub fn highlight_search_term<'a>(text: &'a str, search: &'a str) -> Vec<Span<'a>
         let actual_end = actual_start + search.len();
 
         if actual_start > last_end {
-            spans.push(Span::raw(&text[last_end..actual_start]));
+            spans.push(Span::styled(&text[last_end..actual_start], base_style));
         }
 
         spans.push(Span::styled(
             &text[actual_start..actual_end],
-            Style::default().fg(Color::Black).bg(Color::Yellow),
+            theme.search_match_style,
         ));
 
         last_end = actual_end;
     }
 
     if last_end < text.len() {
-        spans.push(Span::raw(&text[last_end..]));
+        spans.push(Span::styled(&text[last_end..], base_style));
     }
 
     spans

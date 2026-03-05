@@ -1,6 +1,6 @@
 [package]
 name = "quickswitch"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 description = "A terminal-based tool for quickly switching between directories and files."
 authors = ["Debin <luodeb@outlook.com>"]

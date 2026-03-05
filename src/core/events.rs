@@ -9,23 +9,20 @@ use std::{env, io};
 
 use crate::{
     App,
-    core::InputDispatcher,
     modes::{ModeAction, history::HistoryDataProvider},
     utils::FileItem,
 };
 
 /// Main entry point for keyboard event handling
-/// Now delegates to the app instead of handling directly
-pub async fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<bool> {
-    let current_mode = *app.mode_manager.get_current_mode();
-    let action = InputDispatcher::handle_key_event(&mut app.state, key, &current_mode).await?;
+/// Now delegates to the current mode handler
+pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<bool> {
+    let action = app.mode_manager.current_handler.handle_key_event(&mut app.state, key)?;
     handle_action(app, action)
 }
 
 /// Handle mouse events
-pub async fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> Result<bool> {
-    let current_mode = *app.mode_manager.get_current_mode();
-    let action = InputDispatcher::handle_mouse_event(&mut app.state, mouse, &current_mode).await?;
+pub fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> Result<bool> {
+    let action = app.mode_manager.current_handler.handle_mouse_event(&mut app.state, mouse)?;
     handle_action(app, action)
 }
 

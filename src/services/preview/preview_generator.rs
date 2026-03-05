@@ -1,7 +1,4 @@
-use ratatui::{
-    style::{Color, Style},
-    text::{Line, Span},
-};
+use ratatui::text::{Line, Span};
 use std::fs;
 
 use super::PreviewContent;
@@ -11,7 +8,7 @@ use crate::utils::FileItem;
 pub trait PreviewGeneratorTrait {
     /// Generate preview content for a file
     #[allow(async_fn_in_trait)]
-    async fn generate_preview(&self, file: &FileItem) -> (String, PreviewContent);
+    async fn generate_preview(&self, file: &FileItem, theme: &crate::theme::Theme) -> (String, PreviewContent);
 
     /// Check if this generator can handle the given file
     fn can_handle(&self, file: &FileItem) -> bool;
@@ -43,13 +40,13 @@ impl PreviewGeneratorType {
     }
 
     /// Generate preview content for a file
-    pub async fn generate_preview(&self, file: &FileItem) -> (String, PreviewContent) {
+    pub async fn generate_preview(&self, file: &FileItem, theme: &crate::theme::Theme) -> (String, PreviewContent) {
         match self {
-            PreviewGeneratorType::Directory(generator) => generator.generate_preview(file).await,
-            PreviewGeneratorType::Image(generator) => generator.generate_preview(file).await,
-            PreviewGeneratorType::Pdf(generator) => generator.generate_preview(file).await,
-            PreviewGeneratorType::Text(generator) => generator.generate_preview(file).await,
-            PreviewGeneratorType::Binary(generator) => generator.generate_preview(file).await,
+            PreviewGeneratorType::Directory(generator) => generator.generate_preview(file, theme).await,
+            PreviewGeneratorType::Image(generator) => generator.generate_preview(file, theme).await,
+            PreviewGeneratorType::Pdf(generator) => generator.generate_preview(file, theme).await,
+            PreviewGeneratorType::Text(generator) => generator.generate_preview(file, theme).await,
+            PreviewGeneratorType::Binary(generator) => generator.generate_preview(file, theme).await,
         }
     }
 }
@@ -59,7 +56,7 @@ pub struct PreviewGenerator;
 
 impl PreviewGenerator {
     /// Generate preview content for a file or directory
-    pub async fn generate_preview_content(file: &FileItem) -> (String, PreviewContent) {
+    pub async fn generate_preview_content(file: &FileItem, theme: &crate::theme::Theme) -> (String, PreviewContent) {
         // Try different file preview generators in order
         let generators = vec![
             PreviewGeneratorType::Directory(DirectoryPreviewGenerator),
@@ -70,13 +67,13 @@ impl PreviewGenerator {
 
         for generator in generators {
             if generator.can_handle(file) {
-                return generator.generate_preview(file).await;
+                return generator.generate_preview(file, theme).await;
             }
         }
 
         // Fallback to binary file preview
         let binary_gen = PreviewGeneratorType::Binary(BinaryPreviewGenerator);
-        binary_gen.generate_preview(file).await
+        binary_gen.generate_preview(file, theme).await
     }
 }
 
@@ -121,7 +118,7 @@ impl PreviewGeneratorTrait for BinaryPreviewGenerator {
         true
     }
 
-    async fn generate_preview(&self, file: &FileItem) -> (String, PreviewContent) {
+    async fn generate_preview(&self, file: &FileItem, theme: &crate::theme::Theme) -> (String, PreviewContent) {
         let title = format!("📄 {}", file.name);
 
         // Get file metadata
@@ -130,7 +127,7 @@ impl PreviewGeneratorTrait for BinaryPreviewGenerator {
             Err(e) => {
                 let content = vec![Line::from(vec![Span::styled(
                     format!("Error reading file metadata: {e}"),
-                    Style::default().fg(Color::Red),
+                    theme.preview_error_style,
                 )])];
                 return (title, PreviewContent::text(content));
             }
@@ -141,21 +138,21 @@ impl PreviewGeneratorTrait for BinaryPreviewGenerator {
         let content = vec![
             Line::from(vec![Span::styled(
                 "Binary File".to_string(),
-                Style::default().fg(Color::Yellow),
+                theme.preview_placeholder_style,
             )]),
             Line::from(vec![Span::raw("".to_string())]),
             Line::from(vec![Span::styled(
                 format!("Size: {file_size} bytes"),
-                Style::default().fg(Color::Gray),
+                theme.preview_info_style,
             )]),
             Line::from(vec![Span::styled(
                 "Cannot preview binary content".to_string(),
-                Style::default().fg(Color::Gray),
+                theme.preview_info_style,
             )]),
             Line::from(vec![Span::raw("".to_string())]),
             Line::from(vec![Span::styled(
                 "File type: Binary/Unknown".to_string(),
-                Style::default().fg(Color::Cyan),
+                theme.dir_style,
             )]),
         ];
 

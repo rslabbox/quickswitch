@@ -12,8 +12,8 @@ use tracing::{debug, instrument};
 /// The function will create the directory if it doesn't exist.
 pub fn get_data_dir() -> Result<PathBuf> {
     // First, try to read from environment variable
-    if let Ok(env_dir) = std::env::var("_QUICKSWITCH_DATA_DIR") {
-        if !env_dir.trim().is_empty() {
+    if let Ok(env_dir) = std::env::var("_QUICKSWITCH_DATA_DIR")
+        && !env_dir.trim().is_empty() {
             let data_dir = PathBuf::from(env_dir);
             // Create directory if it doesn't exist
             if !data_dir.exists() {
@@ -21,7 +21,6 @@ pub fn get_data_dir() -> Result<PathBuf> {
             }
             return Ok(data_dir);
         }
-    }
 
     // If environment variable is not set or empty, use default directory
     let data_dir = get_default_data_dir()?;

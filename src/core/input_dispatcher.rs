@@ -1,11 +1,11 @@
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEvent, MouseEvent, MouseEventKind};
 
 use crate::{
     AppState,
     modes::ModeAction,
-    services::{PreviewManager, create_data_provider},
-    utils::{AppMode, DisplayItem, FileItem},
+    services::PreviewManager,
+    utils::{DisplayItem, FileItem},
 };
 
 /// Unified input dispatcher for handling all user interactions
@@ -14,140 +14,51 @@ pub struct InputDispatcher;
 
 impl InputDispatcher {
     /// Handle keyboard input uniformly across all modes
-    pub async fn handle_key_event(
+    pub fn handle_key_event(
         state: &mut AppState,
         key: KeyEvent,
-        current_mode: &AppMode,
-    ) -> Result<ModeAction> {
-        // Handle exit keys first (highest priority)
-        if let Some(action) = Self::handle_exit_keys(state, key, current_mode) {
-            return Ok(action);
-        }
-
-        // Handle mode switch keys
-        if let Some(action) = Self::handle_mode_switch_keys(state, key, current_mode) {
-            return Ok(action);
-        }
-
+        provider: &dyn crate::services::DataProvider,
+    ) -> Result<Option<ModeAction>> {
         // Handle navigation keys (unified for all modes)
-        if let Some(action) = Self::handle_navigation_keys(state, key, current_mode).await? {
-            return Ok(action);
+        if let Some(action) = Self::handle_navigation_keys(state, key, provider)? {
+            return Ok(Some(action));
         }
 
         // Handle mode-specific keys
-        Self::handle_mode_specific_keys(state, key, current_mode)
+        Ok(Some(Self::handle_mode_specific_keys(state, key)?))
     }
 
     /// Handle mouse input uniformly across all modes
-    pub async fn handle_mouse_event(
+    pub fn handle_mouse_event(
         state: &mut AppState,
         mouse: MouseEvent,
-        current_mode: &AppMode,
+        provider: &dyn crate::services::DataProvider,
     ) -> Result<ModeAction> {
         match mouse.kind {
             MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
-                Self::handle_scroll_navigation(state, mouse, current_mode).await
+                Self::handle_scroll_navigation(state, mouse, provider)
             }
             MouseEventKind::Up(crossterm::event::MouseButton::Left) => {
-                Self::handle_left_click(state, mouse, current_mode).await
+                Self::handle_left_click(state, mouse, provider)
             }
             _ => Ok(ModeAction::Stay),
         }
     }
 
-    /// Handle exit keys (Esc, Enter) - unified across all modes
-    fn handle_exit_keys(
-        state: &mut AppState,
-        key: KeyEvent,
-        current_mode: &AppMode,
-    ) -> Option<ModeAction> {
-        match key.code {
-            KeyCode::Esc => {
-                // If searching, exit search mode but keep search input and results
-                if state.is_searching {
-                    state.is_searching = false;
-                    // Don't clear search_input - keep the search results visible
-                    Some(ModeAction::Stay)
-                } else if current_mode == &AppMode::Normal {
-                    if state.get_selected_item().is_none() {
-                        // In normal mode, Esc exits the application
-                        return Some(ModeAction::Exit(None));
-                    }
-                    state.file_list_state.select(None);
-                    PreviewManager::clear_preview();
-                    Some(ModeAction::Stay)
-                } else {
-                    // In other modes, Esc returns to normal mode
-                    Some(ModeAction::Switch(AppMode::Normal))
-                }
-            }
-            KeyCode::Enter => {
-                if key.modifiers == KeyModifiers::CONTROL {
-                    return Some(ModeAction::Stay);
-                }
-                // Handle selection and exit using unified data provider
-                let provider = create_data_provider(current_mode);
-                if let Some(item) = state.get_selected_item() {
-                    let _ = provider.navigate_to_selected(state);
-                    match item {
-                        DisplayItem::File(file) => Some(ModeAction::Exit(Some(file))),
-                        DisplayItem::History(entry) => {
-                            let file_item = FileItem::from_path(&entry.path);
-                            Some(ModeAction::Exit(Some(file_item)))
-                        }
-                    }
-                } else {
-                    let file_item = FileItem::from_path(&state.current_dir);
-                    Some(ModeAction::Exit(Some(file_item)))
-                }
-            }
-            _ => None,
-        }
-    }
-
-    /// Handle mode switching keys - unified across all modes
-    fn handle_mode_switch_keys(
-        state: &mut AppState,
-        key: KeyEvent,
-        current_mode: &AppMode,
-    ) -> Option<ModeAction> {
-        match key.code {
-            KeyCode::Char('/') => {
-                // Enable search functionality in normal and history modes
-                if matches!(current_mode, AppMode::Normal | AppMode::History) && !state.is_searching
-                {
-                    state.is_searching = true;
-                    Some(ModeAction::Stay)
-                } else {
-                    None
-                }
-            }
-            KeyCode::Char('v') if !state.is_searching => {
-                if current_mode != &AppMode::History {
-                    Some(ModeAction::Switch(AppMode::History))
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
-    }
-
     /// Handle navigation keys - unified using data providers
-    async fn handle_navigation_keys(
+    pub fn handle_navigation_keys(
         state: &mut AppState,
         key: KeyEvent,
-        current_mode: &AppMode,
+        provider: &dyn crate::services::DataProvider,
     ) -> Result<Option<ModeAction>> {
-        let provider = create_data_provider(current_mode);
 
         match key.code {
             KeyCode::Up => {
-                provider.navigate_up(state).await;
+                provider.navigate_up(state);
                 Ok(Some(ModeAction::Stay))
             }
             KeyCode::Down => {
-                provider.navigate_down(state).await;
+                provider.navigate_down(state);
                 Ok(Some(ModeAction::Stay))
             }
             KeyCode::Right => {
@@ -168,11 +79,11 @@ impl InputDispatcher {
             }
             // hjkl keys only work when not searching
             KeyCode::Char('k') if !state.is_searching => {
-                provider.navigate_up(state).await;
+                provider.navigate_up(state);
                 Ok(Some(ModeAction::Stay))
             }
             KeyCode::Char('j') if !state.is_searching => {
-                provider.navigate_down(state).await;
+                provider.navigate_down(state);
                 Ok(Some(ModeAction::Stay))
             }
             KeyCode::Char('l') if !state.is_searching => {
@@ -197,11 +108,11 @@ impl InputDispatcher {
             }
             // Half-page navigation keys (only work when not searching)
             KeyCode::Char('b') if !state.is_searching => {
-                provider.navigate_half_page_down(state).await;
+                provider.navigate_half_page_down(state);
                 Ok(Some(ModeAction::Stay))
             }
             KeyCode::Char('f') if !state.is_searching => {
-                provider.navigate_half_page_up(state).await;
+                provider.navigate_half_page_up(state);
                 Ok(Some(ModeAction::Stay))
             }
             _ => Ok(None),
@@ -209,10 +120,9 @@ impl InputDispatcher {
     }
 
     /// Handle mode-specific keys that don't fit into common patterns
-    fn handle_mode_specific_keys(
+    pub fn handle_mode_specific_keys(
         state: &mut AppState,
         key: KeyEvent,
-        _current_mode: &AppMode,
     ) -> Result<ModeAction> {
         // Handle search input when in search mode
         if state.is_searching {
@@ -253,39 +163,38 @@ impl InputDispatcher {
         let visible_height = state.layout.get_right_content_height();
         match key.code {
             KeyCode::PageUp => {
-                PreviewManager::scroll_preview_page_up(visible_height);
+                PreviewManager::scroll_preview_page_up(state, visible_height);
             }
             KeyCode::PageDown => {
-                PreviewManager::scroll_preview_page_down(visible_height);
+                PreviewManager::scroll_preview_page_down(state, visible_height);
             }
             _ => {}
         }
     }
 
     /// Handle scroll navigation using unified data providers
-    async fn handle_scroll_navigation(
+    fn handle_scroll_navigation(
         state: &mut AppState,
         mouse: MouseEvent,
-        current_mode: &AppMode,
+        provider: &dyn crate::services::DataProvider,
     ) -> Result<ModeAction> {
         let is_scroll_up = matches!(mouse.kind, MouseEventKind::ScrollUp);
 
         // Check if mouse is in left area (file/history list) or right area (preview)
         if state.is_point_in_left_panel(mouse.column, mouse.row) {
             // Mouse is in left panel - scroll list using unified provider
-            let provider = create_data_provider(current_mode);
             if is_scroll_up {
-                provider.navigate_up(state).await;
+                provider.navigate_up(state);
             } else {
-                provider.navigate_down(state).await;
+                provider.navigate_down(state);
             }
             PreviewManager::preview_for_selected_item(state);
         } else if state.is_point_in_right_panel(mouse.column, mouse.row) {
             // Mouse is in right panel - scroll preview content
             if is_scroll_up {
-                PreviewManager::scroll_preview_up();
+                PreviewManager::scroll_preview_up(state);
             } else {
-                PreviewManager::scroll_preview_down();
+                PreviewManager::scroll_preview_down(state);
             }
         }
 
@@ -293,22 +202,21 @@ impl InputDispatcher {
     }
 
     /// Handle left mouse click using unified data providers
-    async fn handle_left_click(
+    fn handle_left_click(
         state: &mut AppState,
         mouse: MouseEvent,
-        current_mode: &AppMode,
+        provider: &dyn crate::services::DataProvider,
     ) -> Result<ModeAction> {
         // Only handle clicks in the left panel (file/history list)
         if !state.is_point_in_left_panel(mouse.column, mouse.row) {
             return Ok(ModeAction::Stay);
         }
 
-        let provider = create_data_provider(current_mode);
         let left_area = state.layout.get_left_area();
 
         // Calculate the actual clicked index considering scroll offset
         let visible_row = (mouse.row - left_area.y - 1) as usize; // Row relative to the visible area
-        let scroll_offset = Self::get_scroll_offset(state, current_mode);
+        let scroll_offset = Self::get_scroll_offset(state);
         let clicked_index = visible_row + scroll_offset;
 
         // Check bounds
@@ -328,8 +236,8 @@ impl InputDispatcher {
         Self::update_double_click_state(state, mouse_position, clicked_index);
 
         // Handle double-click action
-        if is_double_click {
-            if let Some(item) = state.get_selected_item() {
+        if is_double_click
+            && let Some(item) = state.get_selected_item() {
                 match item {
                     DisplayItem::File(_) => {
                         if let Some(action) = provider.navigate_into_directory(state)? {
@@ -344,7 +252,6 @@ impl InputDispatcher {
                     }
                 }
             }
-        }
 
         Ok(ModeAction::Stay)
     }
@@ -386,8 +293,8 @@ impl InputDispatcher {
         state.double_click_state.last_clicked_index = Some(clicked_index);
     }
 
-    /// Get the current scroll offset for the given mode
-    fn get_scroll_offset(state: &mut AppState, _current_mode: &AppMode) -> usize {
+    /// Get the current scroll offset
+    fn get_scroll_offset(state: &mut AppState) -> usize {
         // All modes now use the unified file_list_state
         state.file_list_state.offset()
     }

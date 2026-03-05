@@ -1,98 +1,78 @@
 use crate::{
     AppState,
-    services::{GlobalPreviewState, PreviewGenerator, preview::PreviewContent},
+    services::{PreviewGenerator, preview::PreviewContent},
     utils::{DisplayItem, FileItem},
 };
-use ratatui::{
-    style::{Color, Style},
-    text::{Line, Span},
-};
+use ratatui::text::{Line, Span};
 
 /// Unified preview manager for handling all preview functionality
 pub struct PreviewManager;
 
 impl PreviewManager {
-    pub fn preview_for_selected_item(state: &AppState) {
+    pub fn preview_for_selected_item(state: &mut AppState) {
         if let Some(item) = state.get_selected_item() {
-            // Get file info for placeholder
             let file_item = match item {
                 DisplayItem::File(file) => file.clone(),
                 DisplayItem::History(entry) => FileItem::from_path(&entry.path),
             };
-            Self::update_preview_for_item_async(&file_item);
+            Self::update_preview_for_item_async(state, &file_item);
         }
     }
 
-    /// Update preview for a DisplayItem with non-blocking background generation
-    fn update_preview_for_item_async(file_item: &FileItem) {
-        let global_state = GlobalPreviewState::instance();
-
-        // Show immediate placeholder content
+    fn update_preview_for_item_async(state: &mut AppState, file_item: &FileItem) {
         let placeholder_title = format!("📄 {}", file_item.name);
         let placeholder_content = PreviewContent::text(vec![
             Line::from(vec![Span::styled(
                 "Loading preview...".to_string(),
-                Style::default().fg(Color::Yellow),
+                state.theme.preview_placeholder_style,
             )]),
             Line::from(vec![Span::raw("".to_string())]),
             Line::from(vec![Span::styled(
                 "Please wait while content is being processed.".to_string(),
-                Style::default().fg(Color::Gray),
+                state.theme.preview_info_style,
             )]),
         ]);
-        global_state.set_current_file_item(Some(file_item.clone()));
-        global_state.update_preview(
+        
+        state.preview.set_current_file_item(Some(file_item.clone()));
+        state.preview.update_preview(
             placeholder_title,
             placeholder_content,
             Some(file_item.clone()),
         );
 
-        // Start background task to generate actual content
         let file_path = file_item.path.clone();
+        let file_item_clone = file_item.clone();
+        let tx = state.preview_tx.clone();
+        let theme_clone = state.theme.clone();
 
         tokio::spawn(async move {
-            let file_item = FileItem::from_path(&file_path);
-            let (title, content) = PreviewGenerator::generate_preview_content(&file_item).await;
-
-            // Update the global state with the actual content
-            let global_state = GlobalPreviewState::instance();
-            global_state.update_preview(title, content, Some(file_item));
+            let file_item_thread = FileItem::from_path(&file_path);
+            let (title, content) = PreviewGenerator::generate_preview_content(&file_item_thread, &theme_clone).await;
+            let _ = tx.send((title, content, Some(file_item_clone)));
         });
     }
 
-    /// Clear preview content
-    pub fn clear_preview() {
-        let global_state = GlobalPreviewState::instance();
-        global_state.clear_preview();
+    pub fn clear_preview(state: &mut AppState) {
+        state.preview.clear_preview();
     }
 
-    /// Scroll preview content up by one line
-    pub fn scroll_preview_up() -> bool {
-        let global_state = GlobalPreviewState::instance();
-        global_state.scroll_up()
+    pub fn scroll_preview_up(state: &mut AppState) -> bool {
+        state.preview.scroll_up()
     }
 
-    /// Scroll preview content down by one line
-    pub fn scroll_preview_down() -> bool {
-        let global_state = GlobalPreviewState::instance();
-        global_state.scroll_down()
+    pub fn scroll_preview_down(state: &mut AppState) -> bool {
+        state.preview.scroll_down()
     }
 
-    /// Scroll preview content up by half screen (page up)
-    pub fn scroll_preview_page_up(visible_height: usize) -> bool {
-        let global_state = GlobalPreviewState::instance();
-        global_state.scroll_page_up(visible_height)
+    pub fn scroll_preview_page_up(state: &mut AppState, visible_height: usize) -> bool {
+        state.preview.scroll_page_up(visible_height)
     }
 
-    /// Scroll preview content down by half screen (page down)
-    pub fn scroll_preview_page_down(visible_height: usize) -> bool {
-        let global_state = GlobalPreviewState::instance();
-        global_state.scroll_page_down(visible_height)
+    pub fn scroll_preview_page_down(state: &mut AppState, visible_height: usize) -> bool {
+        state.preview.scroll_page_down(visible_height)
     }
 
-    /// Reset preview scroll position to top
-    pub fn reset_preview_scroll() {
-        let global_state = GlobalPreviewState::instance();
-        global_state.reset_scroll();
+    pub fn reset_preview_scroll(state: &mut AppState) {
+        state.preview.reset_scroll();
     }
 }

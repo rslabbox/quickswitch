@@ -25,12 +25,17 @@ pub struct AppState {
     pub dir_positions: HashMap<PathBuf, usize>,
     pub double_click_state: DoubleClickState,
     pub layout: LayoutManager,
+    pub theme: crate::theme::Theme,
+    pub preview: crate::services::global_preview_state::PreviewState,
+    pub preview_tx: std::sync::mpsc::Sender<(String, crate::services::preview::PreviewContent, Option<crate::utils::FileItem>)>,
+    pub preview_rx: std::sync::mpsc::Receiver<(String, crate::services::preview::PreviewContent, Option<crate::utils::FileItem>)>,
 }
 
 impl AppState {
     #[instrument]
     pub fn new() -> anyhow::Result<Self> {
         let current_dir = std::env::current_dir()?;
+        let (preview_tx, preview_rx) = std::sync::mpsc::channel();
         debug!(dir = %current_dir.display(), "Build AppState");
         Ok(Self {
             search_input: String::new(),
@@ -47,6 +52,10 @@ impl AppState {
                 last_clicked_index: None,
             },
             layout: LayoutManager::new(),
+            theme: crate::theme::Theme::default(),
+            preview: crate::services::global_preview_state::PreviewState::default(),
+            preview_tx,
+            preview_rx,
         })
     }
 
@@ -148,14 +157,12 @@ impl AppState {
     /// Get selected item
     #[instrument(skip(self))]
     pub fn get_selected_item(&self) -> Option<DisplayItem> {
-        if let Some(selected) = self.file_list_state.selected() {
-            if let Some(&file_index) = self.filtered_files.get(selected) {
-                if let Some(item) = self.files.get(file_index).cloned() {
+        if let Some(selected) = self.file_list_state.selected()
+            && let Some(&file_index) = self.filtered_files.get(selected)
+                && let Some(item) = self.files.get(file_index).cloned() {
                     debug!(item_name = %item.get_display_name(), "Selected item retrieved");
                     return Some(item);
                 }
-            }
-        }
         debug!("No item selected");
         None
     }

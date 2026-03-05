@@ -1,14 +1,17 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
 };
 
+use crossterm::event::{KeyCode, KeyModifiers};
 use crate::{
     app_state::AppState,
+    services::PreviewManager,
+    utils::{AppMode, DisplayItem, FileItem},
     modes::{
-        ModeHandler, Renderer,
-        normal::{FileListRenderer, NormalHelpRenderer},
+        ModeHandler, Renderer, ModeAction,
+        normal::{FileListRenderer, NormalHelpRenderer, data_provider::FileListDataProvider},
         preview::PreviewRenderer,
     },
 };
@@ -37,6 +40,66 @@ impl NormalModeHandler {
 }
 
 impl ModeHandler for NormalModeHandler {
+    fn handle_key_event(&mut self, state: &mut AppState, key: crossterm::event::KeyEvent) -> anyhow::Result<crate::modes::ModeAction> {
+        // Mode switch
+        if !state.is_searching {
+            if key.code == KeyCode::Char('v') {
+                return Ok(ModeAction::Switch(AppMode::History));
+            }
+            if key.code == KeyCode::Char('/') {
+                state.is_searching = true;
+                return Ok(ModeAction::Stay);
+            }
+        }
+        
+        // Exit keys
+        match key.code {
+            KeyCode::Esc => {
+                if state.is_searching {
+                    state.is_searching = false;
+                    return Ok(ModeAction::Stay);
+                } else if state.get_selected_item().is_none() {
+                    return Ok(ModeAction::Exit(None));
+                } else {
+                    state.file_list_state.select(None);
+                    PreviewManager::clear_preview(state);
+                    return Ok(ModeAction::Stay);
+                }
+            }
+            KeyCode::Enter
+                if key.modifiers != KeyModifiers::CONTROL => {
+                    use crate::services::DataProvider;
+                    let provider = FileListDataProvider;
+                    if let Some(item) = state.get_selected_item() {
+                        let _ = provider.navigate_to_selected(state);
+                        match item {
+                            DisplayItem::File(file) => return Ok(ModeAction::Exit(Some(file))),
+                            DisplayItem::History(entry) => {
+                                let file_item = FileItem::from_path(&entry.path);
+                                return Ok(ModeAction::Exit(Some(file_item)));
+                            }
+                        }
+                    } else {
+                        let file_item = FileItem::from_path(&state.current_dir);
+                        return Ok(ModeAction::Exit(Some(file_item)));
+                    }
+                }
+            _ => {}
+        }
+        
+        // Delegate shared logic
+        let provider = FileListDataProvider;
+        if let Some(action) = crate::core::InputDispatcher::handle_key_event(state, key, &provider)? {
+            return Ok(action);
+        }
+        
+        Ok(ModeAction::Stay)
+    }
+
+    fn handle_mouse_event(&mut self, state: &mut AppState, mouse: crossterm::event::MouseEvent) -> anyhow::Result<crate::modes::ModeAction> {
+        let provider = FileListDataProvider;
+        crate::core::InputDispatcher::handle_mouse_event(state, mouse, &provider)
+    }
     fn render_left_panel(&self, f: &mut Frame, area: Rect, state: &AppState) {
         self.file_list_renderer.render(f, area, state);
     }
@@ -54,7 +117,7 @@ impl ModeHandler for NormalModeHandler {
             if state.search_input.is_empty() {
                 (
                     "SEARCH - Type to search, ESC to exit search".to_string(),
-                    Style::default().fg(Color::Black).bg(Color::Yellow),
+                    state.theme.search_box_active,
                 )
             } else {
                 (
@@ -63,24 +126,24 @@ impl ModeHandler for NormalModeHandler {
                         state.search_input,
                         state.filtered_files.len()
                     ),
-                    Style::default().fg(Color::Black).bg(Color::Yellow),
+                    state.theme.search_box_active,
                 )
             }
         } else if !state.search_input.is_empty() {
             // Show search results even when not actively searching
             (
                 format!(
-                    "FILTERED - '{}' - {} matches (/f to search again)",
+                    "FILTERED - '{}' - {} matches (/ to search again)",
                     state.search_input,
                     state.filtered_files.len()
                 ),
-                Style::default().fg(Color::Black).bg(Color::Green),
+                state.theme.search_box_results,
             )
         } else {
             (
-                "NORMAL - hjkl navigate, b/f half page, /f search, v history, Enter exit"
+                "NORMAL - hjkl navigate, bf half page, / search, v history, Enter exit"
                     .to_string(),
-                Style::default().fg(Color::Yellow),
+                state.theme.search_box_normal,
             )
         };
         (info, state.search_input.clone(), style)

@@ -1,9 +1,6 @@
 use std::fs;
 
-use ratatui::{
-    style::{Color, Style},
-    text::{Line, Span},
-};
+use ratatui::text::{Line, Span};
 
 use super::PreviewContent;
 use crate::utils::FileItem;
@@ -18,10 +15,10 @@ impl PreviewGeneratorTrait for DirectoryPreviewGenerator {
         file.is_dir
     }
 
-    async fn generate_preview(&self, file: &FileItem) -> (String, PreviewContent) {
+    async fn generate_preview(&self, file: &FileItem, theme: &crate::theme::Theme) -> (String, PreviewContent) {
         // Special handling for Windows drives view
         if file.path.to_string_lossy() == "DRIVES:" {
-            return Self::generate_drives_preview();
+            return Self::generate_drives_preview(theme);
         }
 
         let title = format!("📁 {}", file.name);
@@ -43,11 +40,11 @@ impl PreviewGeneratorTrait for DirectoryPreviewGenerator {
                     .map(|entry| {
                         let name = entry.file_name().to_string_lossy().into_owned();
                         let is_dir = entry.path().is_dir();
-                        let icon = if is_dir { "📁" } else { "📄" };
+                        let icon = if is_dir { theme.dir_icon } else { theme.file_icon };
                         let style = if is_dir {
-                            Style::default().fg(Color::Cyan)
+                            theme.dir_style
                         } else {
-                            Style::default()
+                            theme.file_style
                         };
 
                         Line::from(vec![
@@ -61,7 +58,7 @@ impl PreviewGeneratorTrait for DirectoryPreviewGenerator {
                 if preview_content.is_empty() {
                     preview_content.push(Line::from(vec![Span::styled(
                         "Empty directory".to_string(),
-                        Style::default().fg(Color::Gray),
+                        theme.preview_info_style,
                     )]));
                 }
 
@@ -70,7 +67,7 @@ impl PreviewGeneratorTrait for DirectoryPreviewGenerator {
             Err(e) => {
                 vec![Line::from(vec![Span::styled(
                     format!("Error reading directory: {e}"),
-                    Style::default().fg(Color::Red),
+                    theme.preview_error_style,
                 )])]
             }
         };
@@ -80,7 +77,7 @@ impl PreviewGeneratorTrait for DirectoryPreviewGenerator {
 
 impl DirectoryPreviewGenerator {
     /// Generate preview content for Windows drives view
-    fn generate_drives_preview() -> (String, PreviewContent) {
+    fn generate_drives_preview(theme: &crate::theme::Theme) -> (String, PreviewContent) {
         let title = "💾 Available Drives".to_string();
 
         #[cfg(windows)]
@@ -91,7 +88,7 @@ impl DirectoryPreviewGenerator {
                     if drives.is_empty() {
                         let content = vec![Line::from(vec![Span::styled(
                             "No drives found".to_string(),
-                            Style::default().fg(Color::Gray),
+                            theme.preview_info_style,
                         )])];
                         (title, PreviewContent::text(content))
                     } else {
@@ -102,7 +99,7 @@ impl DirectoryPreviewGenerator {
                                     Span::raw("💾 ".to_string()),
                                     Span::styled(
                                         drive.name.clone(),
-                                        Style::default().fg(Color::Cyan),
+                                        theme.dir_style,
                                     ),
                                 ])
                             })
@@ -113,7 +110,7 @@ impl DirectoryPreviewGenerator {
                 Err(e) => {
                     let content = vec![Line::from(vec![Span::styled(
                         format!("Error loading drives: {e}"),
-                        Style::default().fg(Color::Red),
+                        theme.preview_error_style,
                     )])];
                     (title, PreviewContent::text(content))
                 }
@@ -123,7 +120,7 @@ impl DirectoryPreviewGenerator {
         {
             let content = vec![Line::from(vec![Span::styled(
                 "Drive view not available on this platform".to_string(),
-                Style::default().fg(Color::Gray),
+                theme.preview_info_style,
             )])];
             (title, PreviewContent::text(content))
         }

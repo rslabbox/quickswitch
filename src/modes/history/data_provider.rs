@@ -109,12 +109,11 @@ impl HistoryDataProvider {
         let file_path = self.get_history_file_path();
 
         // Ensure directory exists
-        if let Some(parent) = file_path.parent() {
-            if !parent.exists() {
+        if let Some(parent) = file_path.parent()
+            && !parent.exists() {
                 info!(path = %parent.display(), "Creating directory for history file");
                 fs::create_dir_all(parent)?;
             }
-        }
         info!(path = %file_path.display(), "Saving history data to file");
         fs::write(file_path, data)?;
         Ok(())
@@ -217,14 +216,13 @@ impl HistoryDataProvider {
 impl DataProvider for HistoryDataProvider {
     fn navigate_into_directory(&self, state: &mut AppState) -> Result<Option<ModeAction>> {
         // In history mode, navigate to the selected directory and switch to normal mode
-        if let Some(item) = state.get_selected_item() {
-            if item.is_directory() {
+        if let Some(item) = state.get_selected_item()
+            && item.is_directory() {
                 // Add to history and change directory
                 self.add_to_history(item.get_path().clone())?;
                 state.current_dir = item.get_path().clone();
                 return Ok(Some(ModeAction::Switch(AppMode::Normal)));
             }
-        }
         Ok(Some(ModeAction::Switch(AppMode::Normal)))
     }
 

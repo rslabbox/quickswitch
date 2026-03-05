@@ -2,14 +2,16 @@ use anyhow::Result;
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
 };
 
+use crossterm::event::{KeyCode, KeyModifiers};
 use crate::{
     AppState,
+    utils::{AppMode, DisplayItem, FileItem},
     modes::{
-        ModeHandler, Renderer,
-        history::{HistoryHelpRenderer, HistoryListRenderer},
+        ModeHandler, Renderer, ModeAction,
+        history::{HistoryHelpRenderer, HistoryListRenderer, data_provider::HistoryDataProvider},
         preview::PreviewRenderer,
     },
 };
@@ -38,6 +40,57 @@ impl HistoryModeHandler {
 }
 
 impl ModeHandler for HistoryModeHandler {
+    fn handle_key_event(&mut self, state: &mut AppState, key: crossterm::event::KeyEvent) -> anyhow::Result<crate::modes::ModeAction> {
+        // Mode switch
+        if !state.is_searching
+            && key.code == KeyCode::Char('/') {
+                state.is_searching = true;
+                return Ok(ModeAction::Stay);
+            }
+        
+        // Exit keys
+        match key.code {
+            KeyCode::Esc => {
+                if state.is_searching {
+                    state.is_searching = false;
+                    return Ok(ModeAction::Stay);
+                } else {
+                    return Ok(ModeAction::Switch(AppMode::Normal));
+                }
+            }
+            KeyCode::Enter
+                if key.modifiers != KeyModifiers::CONTROL => {
+                    use crate::services::DataProvider;
+                    let provider = HistoryDataProvider;
+                    if let Some(item) = state.get_selected_item() {
+                        let _ = provider.navigate_to_selected(state);
+                        match item {
+                            DisplayItem::File(file) => return Ok(ModeAction::Exit(Some(file))),
+                            DisplayItem::History(entry) => {
+                                let file_item = FileItem::from_path(&entry.path);
+                                return Ok(ModeAction::Exit(Some(file_item)));
+                            }
+                        }
+                    } else {
+                        let file_item = FileItem::from_path(&state.current_dir);
+                        return Ok(ModeAction::Exit(Some(file_item)));
+                    }
+                }
+            _ => {}
+        }
+
+        let provider = HistoryDataProvider;
+        if let Some(action) = crate::core::InputDispatcher::handle_key_event(state, key, &provider)? {
+            return Ok(action);
+        }
+        
+        Ok(ModeAction::Stay)
+    }
+
+    fn handle_mouse_event(&mut self, state: &mut AppState, mouse: crossterm::event::MouseEvent) -> anyhow::Result<crate::modes::ModeAction> {
+        let provider = HistoryDataProvider;
+        crate::core::InputDispatcher::handle_mouse_event(state, mouse, &provider)
+    }
     fn render_left_panel(&self, f: &mut Frame, area: Rect, state: &AppState) {
         self.history_list_renderer.render(f, area, state);
     }
@@ -55,7 +108,7 @@ impl ModeHandler for HistoryModeHandler {
             if state.search_input.is_empty() {
                 (
                     "SEARCH - Type to search history, ESC to exit search".to_string(),
-                    Style::default().fg(Color::Black).bg(Color::Yellow),
+                    state.theme.search_box_active,
                 )
             } else {
                 (
@@ -64,26 +117,26 @@ impl ModeHandler for HistoryModeHandler {
                         state.search_input,
                         state.filtered_files.len()
                     ),
-                    Style::default().fg(Color::Black).bg(Color::Yellow),
+                    state.theme.search_box_active,
                 )
             }
         } else if !state.search_input.is_empty() {
             // Show search results even when not actively searching
             (
                 format!(
-                    "FILTERED HISTORY - '{}' - {} matches (l/→ enter dir, /f to search again, ESC to normal)",
+                    "FILTERED HISTORY - '{}' - {} matches (l→ enter dir, / to search again, ESC to normal)",
                     state.search_input,
                     state.filtered_files.len()
                 ),
-                Style::default().fg(Color::Black).bg(Color::Green),
+                state.theme.search_box_results,
             )
         } else {
             (
                 format!(
-                    "HISTORY - {} entries (jk navigate, l/→ enter dir, b/f half page, /f search, Enter select, ESC to normal)",
+                    "HISTORY - {} entries (jk navigate, l→ enter dir, bf half page, / search, Enter select, ESC to normal)",
                     state.files.len()
                 ),
-                Style::default().fg(Color::Cyan),
+                state.theme.search_box_normal,
             )
         };
         (info, state.search_input.clone(), style)

@@ -1,9 +1,6 @@
 use std::fs;
 
-use ratatui::{
-    style::{Color, Style},
-    text::{Line, Span},
-};
+use ratatui::text::{Line, Span};
 
 use super::PreviewContent;
 use crate::utils::FileItem;
@@ -19,7 +16,7 @@ impl PreviewGeneratorTrait for TextPreviewGenerator {
         fs::read_to_string(&file.path).is_ok()
     }
 
-    async fn generate_preview(&self, file: &FileItem) -> (String, PreviewContent) {
+    async fn generate_preview(&self, file: &FileItem, theme: &crate::theme::Theme) -> (String, PreviewContent) {
         let title = format!("📄 {}", file.name);
 
         // First check file size to avoid reading large files
@@ -28,7 +25,7 @@ impl PreviewGeneratorTrait for TextPreviewGenerator {
             Err(e) => {
                 let content = vec![Line::from(vec![Span::styled(
                     format!("Error reading file metadata: {e}"),
-                    Style::default().fg(Color::Red),
+                    theme.preview_error_style,
                 )])];
                 return (title, PreviewContent::text(content));
             }
@@ -42,7 +39,7 @@ impl PreviewGeneratorTrait for TextPreviewGenerator {
             let content = vec![
                 Line::from(vec![Span::styled(
                     "Large File".to_string(),
-                    Style::default().fg(Color::Yellow),
+                    theme.preview_placeholder_style,
                 )]),
                 Line::from(vec![Span::raw("".to_string())]),
                 Line::from(vec![Span::styled(
@@ -51,16 +48,16 @@ impl PreviewGeneratorTrait for TextPreviewGenerator {
                         file_size,
                         file_size as f64 / 1024.0 / 1024.0
                     ),
-                    Style::default().fg(Color::Gray),
+                    theme.preview_info_style,
                 )]),
                 Line::from(vec![Span::styled(
                     "File too large for preview (>5MB)".to_string(),
-                    Style::default().fg(Color::Gray),
+                    theme.preview_info_style,
                 )]),
                 Line::from(vec![Span::raw("".to_string())]),
                 Line::from(vec![Span::styled(
                     "Basic file information:".to_string(),
-                    Style::default().fg(Color::Cyan),
+                    theme.dir_style,
                 )]),
             ];
             return (title, PreviewContent::text(content));
@@ -75,14 +72,14 @@ impl PreviewGeneratorTrait for TextPreviewGenerator {
                         content.len(),
                         content.lines().count()
                     ),
-                    Style::default().fg(Color::Gray),
+                    theme.preview_info_style,
                 )]);
 
                 let mut lines = vec![size_info];
 
                 lines.push(Line::from(vec![Span::styled(
                     "─".repeat(50),
-                    Style::default().fg(Color::Gray),
+                    theme.preview_info_style,
                 )]));
 
                 let content_lines: Vec<Line<'static>> = content
@@ -92,7 +89,7 @@ impl PreviewGeneratorTrait for TextPreviewGenerator {
                         Line::from(vec![
                             Span::styled(
                                 format!("{:3} ", i + 1),
-                                Style::default().fg(Color::DarkGray),
+                                theme.preview_line_number_style,
                             ),
                             Span::raw(process_special_characters(line)),
                         ])
@@ -109,16 +106,16 @@ impl PreviewGeneratorTrait for TextPreviewGenerator {
                 let content = vec![
                     Line::from(vec![Span::styled(
                         "Text Read Error".to_string(),
-                        Style::default().fg(Color::Red),
+                        theme.preview_error_style,
                     )]),
                     Line::from(vec![Span::raw("".to_string())]),
                     Line::from(vec![Span::styled(
                         format!("Size: {file_size} bytes"),
-                        Style::default().fg(Color::Gray),
+                        theme.preview_info_style,
                     )]),
                     Line::from(vec![Span::styled(
                         "Cannot read as text".to_string(),
-                        Style::default().fg(Color::Gray),
+                        theme.preview_info_style,
                     )]),
                 ];
                 (title, PreviewContent::text(content))

@@ -6,6 +6,7 @@ pub mod logging;
 pub mod modes;
 pub mod services;
 pub mod terminal;
+pub mod theme;
 pub mod utils;
 
 pub use app::App;

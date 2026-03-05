@@ -1,9 +1,6 @@
 use std::fs;
 
-use ratatui::{
-    style::{Color, Style},
-    text::{Line, Span},
-};
+use ratatui::text::{Line, Span};
 
 use super::PreviewContent;
 use crate::utils::FileItem;
@@ -18,7 +15,7 @@ impl PreviewGeneratorTrait for PdfPreviewGenerator {
         file.is_pdf()
     }
 
-    async fn generate_preview(&self, file: &FileItem) -> (String, PreviewContent) {
+    async fn generate_preview(&self, file: &FileItem, theme: &crate::theme::Theme) -> (String, PreviewContent) {
         let title = format!("📄 {}", file.name);
 
         // Try to read the PDF file
@@ -30,14 +27,14 @@ impl PreviewGeneratorTrait for PdfPreviewGenerator {
                         let lines_count = text.lines().count();
                         let size_info = Line::from(vec![Span::styled(
                             format!("PDF Document - {lines_count} lines extracted"),
-                            Style::default().fg(Color::Cyan),
+                            theme.dir_style,
                         )]);
 
                         let mut lines = vec![size_info];
 
                         lines.push(Line::from(vec![Span::styled(
                             "─".repeat(50),
-                            Style::default().fg(Color::Gray),
+                            theme.preview_info_style,
                         )]));
 
                         // Process the extracted text
@@ -48,7 +45,7 @@ impl PreviewGeneratorTrait for PdfPreviewGenerator {
                                 Line::from(vec![
                                     Span::styled(
                                         format!("{:3} ", i + 1),
-                                        Style::default().fg(Color::DarkGray),
+                                        theme.preview_line_number_style,
                                     ),
                                     Span::raw(process_special_characters(line)),
                                 ])
@@ -63,17 +60,17 @@ impl PreviewGeneratorTrait for PdfPreviewGenerator {
                         let content = vec![
                             Line::from(vec![Span::styled(
                                 "PDF Processing Error".to_string(),
-                                Style::default().fg(Color::Red),
+                                theme.preview_error_style,
                             )]),
                             Line::from(vec![Span::raw("".to_string())]),
                             Line::from(vec![Span::styled(
                                 format!("Failed to extract text from PDF: {e}"),
-                                Style::default().fg(Color::Gray),
+                                theme.preview_info_style,
                             )]),
                             Line::from(vec![Span::raw("".to_string())]),
                             Line::from(vec![Span::styled(
                                 "This might be a scanned PDF or contain only images.".to_string(),
-                                Style::default().fg(Color::Gray),
+                                theme.preview_info_style,
                             )]),
                         ];
                         (title, PreviewContent::text(content))
@@ -84,12 +81,12 @@ impl PreviewGeneratorTrait for PdfPreviewGenerator {
                 let content = vec![
                     Line::from(vec![Span::styled(
                         "PDF Read Error".to_string(),
-                        Style::default().fg(Color::Red),
+                        theme.preview_error_style,
                     )]),
                     Line::from(vec![Span::raw("".to_string())]),
                     Line::from(vec![Span::styled(
                         format!("Failed to read PDF file: {e}"),
-                        Style::default().fg(Color::Gray),
+                        theme.preview_info_style,
                     )]),
                 ];
                 (title, PreviewContent::text(content))

@@ -1,7 +1,6 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem},
 };
@@ -20,6 +19,7 @@ impl HistoryListRenderer {
 
 impl Renderer for HistoryListRenderer {
     fn render(&self, f: &mut Frame, area: Rect, state: &AppState) {
+        let selected_index = state.file_list_state.selected();
         let history_items: Vec<ListItem> = if state.filtered_files.is_empty() {
             if state.files.is_empty() {
                 vec![ListItem::new("No history available")]
@@ -30,8 +30,12 @@ impl Renderer for HistoryListRenderer {
             state
                 .filtered_files
                 .iter()
-                .filter_map(|&i| state.files.get(i))
-                .map(|item| create_history_list_item(item, &state.search_input))
+                .enumerate()
+                .filter_map(|(idx, &i)| state.files.get(i).map(|item| (idx, item)))
+                .map(|(idx, item)| {
+                    let is_selected = selected_index == Some(idx);
+                    create_history_list_item(item, &state.search_input, &state.theme, is_selected)
+                })
                 .collect()
         };
 
@@ -48,17 +52,23 @@ impl Renderer for HistoryListRenderer {
 
         let history_list = List::new(history_items)
             .block(Block::default().borders(Borders::ALL).title(history_title))
-            .highlight_style(Style::default().bg(Color::DarkGray));
+            .highlight_style(
+                ratatui::style::Style::default()
+                    .fg(state.theme.selected_fg)
+                    .bg(state.theme.selected_bg)
+                    .add_modifier(ratatui::style::Modifier::BOLD)
+            )
+            .highlight_symbol(state.theme.list_highlight_symbol);
 
         f.render_stateful_widget(history_list, area, &mut state.file_list_state.clone());
     }
 }
 
 /// Create a list item for a history entry with directory name and full path
-fn create_history_list_item<'a>(item: &'a DisplayItem, search_input: &'a str) -> ListItem<'a> {
+fn create_history_list_item<'a>(item: &'a DisplayItem, search_input: &'a str, theme: &crate::theme::Theme, is_selected: bool) -> ListItem<'a> {
     match item {
         DisplayItem::History(entry) => {
-            let icon = "📁";
+            let icon = theme.dir_icon;
             let dir_name = entry
                 .path
                 .file_name()
@@ -66,9 +76,23 @@ fn create_history_list_item<'a>(item: &'a DisplayItem, search_input: &'a str) ->
                 .unwrap_or_default();
             let full_path = entry.path.to_string_lossy();
 
+            let mut dir_style = theme.dir_style;
+            let mut freq_style = theme.history_freq_style;
+            let mut path_style = theme.history_path_style;
+            
+            if is_selected {
+                dir_style = ratatui::style::Style::default().fg(theme.selected_fg).bg(theme.selected_bg);
+                freq_style = ratatui::style::Style::default().fg(theme.selected_fg).bg(theme.selected_bg);
+                path_style = ratatui::style::Style::default().fg(theme.selected_fg).bg(theme.selected_bg);
+            } else {
+                dir_style = dir_style.bg(theme.unselected_bg);
+                freq_style = freq_style.bg(theme.unselected_bg);
+                path_style = path_style.bg(theme.unselected_bg);
+            }
+
             // Create spans for the display
             let mut spans = vec![
-                Span::styled(icon, Style::default().fg(Color::Cyan)),
+                Span::styled(icon, dir_style),
                 Span::raw(" "),
             ];
 
@@ -82,30 +106,30 @@ fn create_history_list_item<'a>(item: &'a DisplayItem, search_input: &'a str) ->
                     let matched = &dir_name[pos..pos + search_input.len()];
                     let after = &dir_name[pos + search_input.len()..];
 
-                    spans.push(Span::styled(before, Style::default().fg(Color::Cyan)));
+                    spans.push(Span::styled(before, dir_style));
                     spans.push(Span::styled(
                         matched,
-                        Style::default().fg(Color::Yellow).bg(Color::DarkGray),
+                        theme.search_match_style,
                     ));
-                    spans.push(Span::styled(after, Style::default().fg(Color::Cyan)));
+                    spans.push(Span::styled(after, dir_style));
                 } else {
-                    spans.push(Span::styled(dir_name, Style::default().fg(Color::Cyan)));
+                    spans.push(Span::styled(dir_name, dir_style));
                 }
             } else {
-                spans.push(Span::styled(dir_name, Style::default().fg(Color::Cyan)));
+                spans.push(Span::styled(dir_name, dir_style));
             }
 
             // Add frequency indicator
             spans.push(Span::styled(
                 format!(" ({}×)", entry.frequency),
-                Style::default().fg(Color::Yellow),
+                freq_style,
             ));
 
             // Add full path in darker color
             spans.push(Span::raw(" "));
             spans.push(Span::styled(
                 format!("({full_path})"),
-                Style::default().fg(Color::DarkGray),
+                path_style,
             ));
 
             ListItem::new(Line::from(spans))

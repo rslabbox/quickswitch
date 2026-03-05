@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::{
     app_state::AppState,
-    modes::{ModeAction, history, normal},
+    modes::ModeAction,
     services::PreviewManager,
     utils::{AppMode, DisplayItem},
 };
@@ -37,8 +37,8 @@ pub trait DataProvider {
     }
 
     /// Navigate up in the list
-    #[allow(async_fn_in_trait)]
-    async fn navigate_up(&self, state: &mut AppState) -> bool {
+    
+    fn navigate_up(&self, state: &mut AppState) -> bool {
         let visible_height = state.layout.get_left_content_height() / 2;
         if let Some(selected) = state.file_list_state.selected() {
             if selected > 0 {
@@ -59,8 +59,8 @@ pub trait DataProvider {
     }
 
     /// Navigate down in the list
-    #[allow(async_fn_in_trait)]
-    async fn navigate_down(&self, state: &mut AppState) -> bool {
+    
+    fn navigate_down(&self, state: &mut AppState) -> bool {
         let total = state.filtered_files.len();
         if total == 0 {
             return false;
@@ -84,8 +84,8 @@ pub trait DataProvider {
     }
 
     /// Navigate half page up in the list
-    #[allow(async_fn_in_trait)]
-    async fn navigate_half_page_up(&self, state: &mut AppState) -> bool {
+    
+    fn navigate_half_page_up(&self, state: &mut AppState) -> bool {
         let total = state.filtered_files.len();
         if total == 0 {
             return false;
@@ -112,8 +112,8 @@ pub trait DataProvider {
     }
 
     /// Navigate half page down in the list
-    #[allow(async_fn_in_trait)]
-    async fn navigate_half_page_down(&self, state: &mut AppState) -> bool {
+    
+    fn navigate_half_page_down(&self, state: &mut AppState) -> bool {
         let total = state.filtered_files.len();
         if total == 0 {
             return false;
@@ -203,114 +203,11 @@ pub trait DataProvider {
     }
 }
 
-/// Enum for different data providers to support async trait methods
-pub enum DataProviderType {
-    Normal(normal::FileListDataProvider),
-    History(history::HistoryDataProvider),
-}
 
-impl DataProviderType {
-    /// Get items to display for current mode
-    pub fn get_items(&self, state: &AppState) -> Vec<DisplayItem> {
-        match self {
-            DataProviderType::Normal(provider) => provider.get_items(state),
-            DataProviderType::History(provider) => provider.get_items(state),
-        }
-    }
-
-    /// Get current selected index
-    pub fn get_selected_index(&self, state: &AppState) -> Option<usize> {
-        match self {
-            DataProviderType::Normal(provider) => provider.get_selected_index(state),
-            DataProviderType::History(provider) => provider.get_selected_index(state),
-        }
-    }
-
-    /// Set selected index
-    pub fn set_selected_index(&self, state: &mut AppState, index: Option<usize>) {
-        match self {
-            DataProviderType::Normal(provider) => provider.set_selected_index(state, index),
-            DataProviderType::History(provider) => provider.set_selected_index(state, index),
-        }
-    }
-
-    /// Get total count of items
-    pub fn get_total_count(&self, state: &AppState) -> usize {
-        match self {
-            DataProviderType::Normal(provider) => provider.get_total_count(state),
-            DataProviderType::History(provider) => provider.get_total_count(state),
-        }
-    }
-
-    /// Navigate up in the list
-    pub async fn navigate_up(&self, state: &mut AppState) -> bool {
-        match self {
-            DataProviderType::Normal(provider) => provider.navigate_up(state).await,
-            DataProviderType::History(provider) => provider.navigate_up(state).await,
-        }
-    }
-
-    /// Navigate down in the list
-    pub async fn navigate_down(&self, state: &mut AppState) -> bool {
-        match self {
-            DataProviderType::Normal(provider) => provider.navigate_down(state).await,
-            DataProviderType::History(provider) => provider.navigate_down(state).await,
-        }
-    }
-
-    /// Navigate half page up in the list
-    pub async fn navigate_half_page_up(&self, state: &mut AppState) -> bool {
-        match self {
-            DataProviderType::Normal(provider) => provider.navigate_half_page_up(state).await,
-            DataProviderType::History(provider) => provider.navigate_half_page_up(state).await,
-        }
-    }
-
-    /// Navigate half page down in the list
-    pub async fn navigate_half_page_down(&self, state: &mut AppState) -> bool {
-        match self {
-            DataProviderType::Normal(provider) => provider.navigate_half_page_down(state).await,
-            DataProviderType::History(provider) => provider.navigate_half_page_down(state).await,
-        }
-    }
-
-    /// Load initial data for this mode
-    pub fn load_data(&self, state: &mut AppState) -> Result<()> {
-        match self {
-            DataProviderType::Normal(provider) => provider.load_data(state),
-            DataProviderType::History(provider) => provider.load_data(state),
-        }
-    }
-
-    /// Navigate into the selected directory (if applicable)
-    pub fn navigate_into_directory(&self, state: &mut AppState) -> Result<Option<ModeAction>> {
-        match self {
-            DataProviderType::Normal(provider) => provider.navigate_into_directory(state),
-            DataProviderType::History(provider) => provider.navigate_into_directory(state),
-        }
-    }
-
-    /// Navigate to parent directory (if applicable)
-    pub fn navigate_to_parent(&self, state: &mut AppState) -> Result<Option<ModeAction>> {
-        match self {
-            DataProviderType::Normal(provider) => provider.navigate_to_parent(state),
-            DataProviderType::History(provider) => provider.navigate_to_parent(state),
-        }
-    }
-
-    /// Navigate to selected item (if applicable)
-    pub fn navigate_to_selected(&self, state: &mut AppState) -> Result<bool> {
-        match self {
-            DataProviderType::Normal(provider) => provider.navigate_to_selected(state),
-            DataProviderType::History(provider) => provider.navigate_to_selected(state),
-        }
-    }
-}
-
-/// Factory function to create appropriate data provider for each mode
-pub fn create_data_provider(mode: &AppMode) -> DataProviderType {
+// Re-added create_data_provider as Box<dyn DataProvider>
+pub fn create_data_provider(mode: &crate::utils::AppMode) -> Box<dyn DataProvider> {
     match mode {
-        AppMode::Normal => DataProviderType::Normal(normal::FileListDataProvider),
-        AppMode::History => DataProviderType::History(history::HistoryDataProvider),
+        crate::utils::AppMode::Normal => Box::new(crate::modes::normal::FileListDataProvider),
+        crate::utils::AppMode::History => Box::new(crate::modes::history::HistoryDataProvider),
     }
 }

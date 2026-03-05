@@ -45,6 +45,11 @@ pub trait ModeHandler {
     }
 
     /// Called when exiting this mode
+    /// Handle keyboard input 
+    fn handle_key_event(&mut self, state: &mut AppState, key: crossterm::event::KeyEvent) -> Result<ModeAction>; 
+ 
+    /// Handle mouse input 
+    fn handle_mouse_event(&mut self, state: &mut AppState, mouse: crossterm::event::MouseEvent) -> Result<ModeAction>; 
     fn on_exit(&mut self, _state: &mut AppState) -> Result<()> {
         Ok(())
     }
